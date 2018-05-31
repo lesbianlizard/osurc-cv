@@ -1,82 +1,83 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
 
 using namespace std;
 using namespace cv;
 
-void showHistogram(Mat& img)
+vector<Mat> histoList;
+
+void showHistogram(Mat& src)
 {
-	int bins = 256;             // number of bins
-	int nc = img.channels();    // number of channels
+	/// Separate the image in 3 places ( B, G and R )
+  vector<Mat> bgr_planes;
+  split( src, bgr_planes );
 
-	vector<Mat> hist(nc);       // histogram arrays
+  /// Establish the number of bins
+  int histSize = 256;
 
-	// Initalize histogram arrays
-	for (int i = 0; i < hist.size(); i++)
-		hist[i] = Mat::zeros(1, bins, CV_32SC1);
+  /// Set the ranges ( for B,G,R) )
+  float range[] = { 0, 256 } ;
+  const float* histRange = { range };
 
-	// Calculate the histogram of the image
-	for (int i = 0; i < img.rows; i++)
-	{
-		for (int j = 0; j < img.cols; j++)
-		{
-			for (int k = 0; k < nc; k++)
-			{
-				uchar val = nc == 1 ? img.at<uchar>(i,j) : img.at<Vec3b>(i,j)[k];
-				hist[k].at<int>(val) += 1;
-			}
-		}
-	}
+  bool uniform = true; bool accumulate = false;
 
-	// For each histogram arrays, obtain the maximum (peak) value
-	// Needed to normalize the display later
-	int hmax[3] = {0,0,0};
-	for (int i = 0; i < nc; i++)
-	{
-		for (int j = 0; j < bins-1; j++)
-			hmax[i] = hist[i].at<int>(j) > hmax[i] ? hist[i].at<int>(j) : hmax[i];
-	}
+  Mat b_hist, g_hist, r_hist;
 
-	const char* wname[3] = { "blue", "green", "red" };
-	Scalar colors[3] = { Scalar(255,0,0), Scalar(0,255,0), Scalar(0,0,255) };
+  /// Compute the histograms:
+  calcHist( &bgr_planes[0], 1, 0, Mat(), b_hist, 1, &histSize, &histRange, uniform, accumulate );
+  calcHist( &bgr_planes[1], 1, 0, Mat(), g_hist, 1, &histSize, &histRange, uniform, accumulate );
+  calcHist( &bgr_planes[2], 1, 0, Mat(), r_hist, 1, &histSize, &histRange, uniform, accumulate );
 
-	vector<Mat> canvas(nc);
+  // Draw the histograms for B, G and R
+  int hist_w = 512; int hist_h = 400;
+  int bin_w = cvRound( (double) hist_w/histSize );
 
-	// Display each histogram in a canvas
-	for (int i = 0; i < nc; i++)
-	{
-		canvas[i] = Mat::ones(125, bins, CV_8UC3);
+  Mat histImage( hist_h, hist_w, CV_8UC3, Scalar( 0,0,0) );
 
-		for (int j = 0, rows = canvas[i].rows; j < bins-1; j++)
-		{
-			line(
-				canvas[i],
-				Point(j, rows),
-				Point(j, rows - (hist[i].at<int>(j) * rows/hmax[i])),
-				nc == 1 ? Scalar(200,200,200) : colors[i],
-				1, 8, 0
-			);
-		}
+  /// Normalize the result to [ 0, histImage.rows ]
+  normalize(b_hist, b_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
+  normalize(g_hist, g_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
+  normalize(r_hist, r_hist, 0, histImage.rows, NORM_MINMAX, -1, Mat() );
 
-		imshow(nc == 1 ? "value" : wname[i], canvas[i]);
-	}
+  /// Draw for each channel
+  for( int i = 1; i < histSize; i++ )
+  {
+      line( histImage, Point( bin_w*(i-1), hist_h - cvRound(b_hist.at<float>(i-1)) ) ,
+                       Point( bin_w*(i), hist_h - cvRound(b_hist.at<float>(i)) ),
+                       Scalar( 255, 0, 0), 2, 8, 0  );
+      line( histImage, Point( bin_w*(i-1), hist_h - cvRound(g_hist.at<float>(i-1)) ) ,
+                       Point( bin_w*(i), hist_h - cvRound(g_hist.at<float>(i)) ),
+                       Scalar( 0, 255, 0), 2, 8, 0  );
+      line( histImage, Point( bin_w*(i-1), hist_h - cvRound(r_hist.at<float>(i-1)) ) ,
+                       Point( bin_w*(i), hist_h - cvRound(r_hist.at<float>(i)) ),
+                       Scalar( 0, 0, 255), 2, 8, 0  );
+  }
+	/// Display
+	namedWindow("calcHist Demo", CV_WINDOW_AUTOSIZE );
+	imshow("calcHist Demo", histImage );
+
 }
 
 int main (int argc, const char * argv[])
 {
-    VideoCapture cap(0);
-//    VideoCapture cap("video.avi");
+    // VideoCapture cap(0);
+   VideoCapture cap("video.mp4");
     if (!cap.isOpened())
         return -1;
 
     Mat img;
+		int count = 0;
 
     namedWindow("video capture", CV_WINDOW_NORMAL);
     while (true)
     {
         cap >> img;
-        if (!img.data)
-            continue;
+				count++;
+        if (!img.data) continue;
+				if (count%100 > 10 && count%100 < 30)
+					rectangle(img,Point(700,700),Point(900,900),Scalar(0,0,255), CV_FILLED);
         cvtColor(img, img, cv::COLOR_BGR2HSV);
 
         imshow("video capture", img);

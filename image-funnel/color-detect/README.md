@@ -6,10 +6,8 @@ to the next module in the funnel.
 
 ## Build/run instructions:
 
-`
-make Basic-Histogram
-./Basic-Histogram
-`
+`make Basic-Histogram`
+`./Basic-Histogram`
 
 ## Algorithm: (in-progress)
 
